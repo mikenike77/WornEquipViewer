@@ -1,35 +1,9 @@
-/*
- * Copyright (c) 2023 JZomDev
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
- * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 package com.tabsviewer;
 
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
@@ -41,353 +15,91 @@ import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.ComponentOrientation;
 import net.runelite.client.ui.overlay.components.ImageComponent;
+import java.util.Map;
+import static java.util.Map.entry;
 
 public class EquipmentViewerOverlay extends OverlayPanel
 {
-	private static final int PLACEHOLDER_WIDTH = 36;
-	private static final int PLACEHOLDER_WIDTH_150_PERCENT = 57;
-	private static final int PLACEHOLDER_HEIGHT = 32;
-	private static final ImageComponent PLACEHOLDER_IMAGE = new ImageComponent(new BufferedImage(PLACEHOLDER_WIDTH, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR));
+	private static final int SLOT_WIDTH = Constants.ITEM_SPRITE_WIDTH;
+	private static final int SLOT_HEIGHT = Constants.ITEM_SPRITE_HEIGHT;
+	private static final int GRID_COLS = 3;
+	private static final int GRID_ROWS = 5;
+	private static final int TOTAL_SLOTS = GRID_COLS * GRID_ROWS;
+
 	private final ItemManager itemManager;
 	private final Client client;
+	private final TabsViewerConfig config;
+
+
+	private static final Map<Integer, Integer> SLOT_TO_GRID = Map.ofEntries(
+			entry(0, 1),   // Head
+			entry(1, 3),   // Cape
+			entry(2, 4),   // Amulet
+			entry(13, 5),  // Ammo
+			entry(3, 6),   // Weapon
+			entry(4, 7),   // Body
+			entry(5, 8),   // Shield
+			entry(7, 10),  // Legs
+			entry(9, 12),  // Gloves
+			entry(10, 13), // Boots
+			entry(12, 14)  // Ring
+	);
 
 	@Inject
-	private EquipmentViewerOverlay(Client client, ItemManager itemManager)
+	private EquipmentViewerOverlay(Client client, ItemManager itemManager, TabsViewerConfig config)
 	{
 		setPosition(OverlayPosition.BOTTOM_RIGHT);
 		panelComponent.setWrap(true);
-		panelComponent.setGap(new Point(6, 4));
-		panelComponent.setPreferredSize(new Dimension(3 * (Constants.ITEM_SPRITE_WIDTH + 20), 0));
+		panelComponent.setGap(new Point(0, 0));
+		panelComponent.setPreferredSize(new Dimension(GRID_COLS * SLOT_WIDTH, GRID_ROWS * SLOT_HEIGHT));
 		panelComponent.setOrientation(ComponentOrientation.HORIZONTAL);
 
 		this.itemManager = itemManager;
 		this.client = client;
+		this.config = config;
 	}
 
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		final ItemContainer itemContainer = client.getItemContainer(InventoryID.EQUIPMENT);
+		panelComponent.setBackgroundColor(config.backgroundColor());
 
+		final ItemContainer itemContainer = client.getItemContainer(InventoryID.EQUIPMENT);
 		if (itemContainer == null)
 		{
 			return null;
 		}
-		final Item[] items = itemContainer.getItems();
 
-		ArrayList<ArrayList<Item>> loop = getEquipment(items);
 		panelComponent.getChildren().clear();
+		for (int i = 0; i < TOTAL_SLOTS; i++)
+		{
+			panelComponent.getChildren().add(new ImageComponent(
+					new BufferedImage(SLOT_WIDTH, SLOT_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)
+			));
+		}
 
-		buildFirstRow(loop.get(0));
-		buildSecondRow(loop.get(1));
-		buildThirdRow(loop.get(2));
-		buildForthRow(loop.get(3));
-		buildFifthRow(loop.get(4));
+		final Item[] items = itemContainer.getItems();
+		for (int containerSlot = 0; containerSlot < items.length; containerSlot++)
+		{
+			if (!SLOT_TO_GRID.containsKey(containerSlot))
+			{
+				continue;
+			}
+
+			final Item item = items[containerSlot];
+			if (item == null || item.getId() == -1 || item.getQuantity() <= 0)
+			{
+				continue;
+			}
+
+			final BufferedImage image = getImage(item);
+			if (image != null)
+			{
+				panelComponent.getChildren().set(SLOT_TO_GRID.get(containerSlot), new ImageComponent(image));
+			}
+		}
 
 		return panelComponent.render(graphics);
-	}
-
-	private void buildFirstRow(ArrayList<Item> row)
-	{
-		for (int j = 0; j < row.size(); j++)
-		{
-			if (j == 0)
-			{
-				panelComponent.getChildren().add(new ImageComponent(new BufferedImage(PLACEHOLDER_WIDTH_150_PERCENT, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-			}
-			else if (j == 2)
-			{
-				panelComponent.getChildren().add(new ImageComponent(new BufferedImage(PLACEHOLDER_WIDTH_150_PERCENT, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-			}
-			else
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(image));
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-				}
-			}
-		}
-	}
-
-	private void buildSecondRow(ArrayList<Item> row)
-	{
-		for (int j = 0; j < row.size(); j++)
-		{
-			if (j == 0)
-			{
-				panelComponent.getChildren().add(new ImageComponent(new BufferedImage(15, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(image));
-
-						continue;
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-				}
-			}
-			else if (j == 1)
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(image));
-						continue;
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-				}
-			}
-			else if (j == 2)
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(image));
-						panelComponent.getChildren().add(new ImageComponent(new BufferedImage(15, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(new ImageComponent(new BufferedImage(15, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-				}
-			}
-		}
-	}
-
-	private void buildThirdRow(ArrayList<Item> row)
-	{
-		for (int j = 0; j < row.size(); j++)
-		{
-			if (j == 0)
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(new BufferedImage(3, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-						panelComponent.getChildren().add(new ImageComponent(image));
-						continue;
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(new ImageComponent(new BufferedImage(3, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-
-				}
-			}
-			else if (j == 1)
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(new BufferedImage(4, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-						panelComponent.getChildren().add(new ImageComponent(image));
-						continue;
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(new ImageComponent(new BufferedImage(4, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-
-				}
-			}
-			else if (j == 2)
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(new BufferedImage(2, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-						panelComponent.getChildren().add(new ImageComponent(image));
-
-						continue;
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-				}
-			}
-		}
-	}
-
-	private void buildForthRow(ArrayList<Item> row)
-	{
-		for (int j = 0; j < row.size(); j++)
-		{
-			if (j == 0)
-			{
-				panelComponent.getChildren().add(new ImageComponent(new BufferedImage(9, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-				panelComponent.getChildren().add(new ImageComponent(new BufferedImage(PLACEHOLDER_WIDTH_150_PERCENT, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-			}
-			else if (j == 2)
-			{
-				panelComponent.getChildren().add(new ImageComponent(new BufferedImage(PLACEHOLDER_WIDTH_150_PERCENT, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-			}
-			else
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(image));
-						continue;
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-				}
-			}
-		}
-	}
-
-	private void buildFifthRow(ArrayList<Item> row)
-	{
-		for (int j = 0; j < row.size(); j++)
-		{
-			if (j == 0)
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(new BufferedImage(3, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-						panelComponent.getChildren().add(new ImageComponent(image));
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(new ImageComponent(new BufferedImage(3, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-
-				}
-			}
-			else if (j == 1)
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(new BufferedImage(2, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-						panelComponent.getChildren().add(new ImageComponent(image));
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(new ImageComponent(new BufferedImage(2, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-
-				}
-			}
-			else if (j == 2)
-			{
-				final Item item = row.get(j);
-				if (item != null && item.getQuantity() > 0)
-				{
-					final BufferedImage image = getImage(item);
-					if (image != null)
-					{
-						panelComponent.getChildren().add(new ImageComponent(new BufferedImage(2, PLACEHOLDER_HEIGHT, BufferedImage.TYPE_4BYTE_ABGR)));
-						panelComponent.getChildren().add(new ImageComponent(image));
-						continue;
-					}
-				}
-				else
-				{
-					panelComponent.getChildren().add(PLACEHOLDER_IMAGE);
-				}
-			}
-		}
-	}
-
-	private ArrayList<ArrayList<Item>> getEquipment(Item[] items)
-	{
-		ArrayList<Item> row1 = new ArrayList<>();
-		addItemIfExists(row1, items, -1);
-		addItemIfExists(row1, items, 0);
-		addItemIfExists(row1, items, -1);
-		ArrayList<Item> row2 = new ArrayList<>();
-		addItemIfExists(row2, items, 1);
-		addItemIfExists(row2, items, 2);
-		addItemIfExists(row2, items, 13);
-		ArrayList<Item> row3 = new ArrayList<>();
-		addItemIfExists(row3, items, 3);
-		addItemIfExists(row3, items, 4);
-		addItemIfExists(row3, items, 5);
-		ArrayList<Item> row4 = new ArrayList<>();
-		addItemIfExists(row4, items, 6);
-		addItemIfExists(row4, items, 7);
-		addItemIfExists(row4, items, 8);
-		ArrayList<Item> row5 = new ArrayList<>();
-		addItemIfExists(row5, items, 9);
-		addItemIfExists(row5, items, 10);
-		addItemIfExists(row5, items, 12);
-
-		ArrayList<ArrayList<Item>> returnThis = new ArrayList<>();
-		returnThis.add(row1);
-		returnThis.add(row2);
-		returnThis.add(row3);
-		returnThis.add(row4);
-		returnThis.add(row5);
-
-		return returnThis;
-	}
-
-	private void addItemIfExists(ArrayList<Item> row, Item[] items, int index)
-	{
-		if (index == -1)
-		{
-			row.add(null);
-		}
-		else if (index >= items.length)
-		{
-			row.add(null);
-		}
-		else
-		{
-			row.add(items[index]);
-		}
 	}
 
 	private BufferedImage getImage(Item item)
