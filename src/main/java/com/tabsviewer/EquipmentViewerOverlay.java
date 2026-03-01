@@ -5,17 +5,21 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.image.BufferedImage;
 import javax.inject.Inject;
+import com.google.common.collect.ImmutableSet;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.ItemVariationMapping;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.ComponentOrientation;
 import net.runelite.client.ui.overlay.components.ImageComponent;
 import java.util.Map;
+import java.util.Set;
 import static java.util.Map.entry;
 
 public class EquipmentViewerOverlay extends OverlayPanel {
@@ -25,16 +29,12 @@ public class EquipmentViewerOverlay extends OverlayPanel {
 	private static final int GRID_ROWS = 5;
 	private static final int TOTAL_SLOTS = GRID_COLS * GRID_ROWS;
 
-	private final ItemManager itemManager;
-	private final Client client;
-	private final TabsViewerConfig config;
+	private static final Set<Integer> DIZANAS_QUIVER_IDS = ImmutableSet.<Integer>builder()
+			.addAll(ItemVariationMapping.getVariations(ItemVariationMapping.map(28951)))
+			.addAll(ItemVariationMapping.getVariations(ItemVariationMapping.map(28955)))
+			.addAll(ItemVariationMapping.getVariations(ItemVariationMapping.map(28902)))
+			.build();
 
-	// Grid layout (3 cols x 5 rows), index = row*3 + col:
-	//  [0]        [1] Head   [2] Quiver
-	//  [3] Cape   [4] Amul   [5] Ammo
-	//  [6] Weapon [7] Body   [8] Shield
-	//  [9]        [10] Legs  [11]
-	//  [12] Glove [13] Boots [14] Ring
 	private static final Map<Integer, Integer> SLOT_TO_GRID = Map.ofEntries(
 			entry(0,  1),  // Head
 			entry(1,  3),  // Cape
@@ -46,9 +46,12 @@ public class EquipmentViewerOverlay extends OverlayPanel {
 			entry(7,  10), // Legs
 			entry(9,  12), // Gloves
 			entry(10, 13), // Boots
-			entry(12, 14), // Ring
-			entry(14, 2)   // Dizana's Quiver slot
+			entry(12, 14)  // Ring
 	);
+
+	private final ItemManager itemManager;
+	private final Client client;
+	private final TabsViewerConfig config;
 
 	@Inject
 	private EquipmentViewerOverlay(Client client, ItemManager itemManager, TabsViewerConfig config) {
@@ -56,13 +59,14 @@ public class EquipmentViewerOverlay extends OverlayPanel {
 		panelComponent.setWrap(true);
 		panelComponent.setGap(new Point(4, 4));
 		panelComponent.setPreferredSize(new Dimension(
-				(int)(GRID_COLS * SLOT_WIDTH * 1.15),
-				(int)(GRID_ROWS * SLOT_HEIGHT * 1.15)
-		));		panelComponent.setBorder(new java.awt.Rectangle(
-				(int)(SLOT_HEIGHT * 0.40),  // top
-				(int)(SLOT_WIDTH  * 0.40),  // left
-				(int)(SLOT_HEIGHT * 0.40),  // bottom
-				(int)(SLOT_WIDTH  * 0.40)   // right
+				(int)(GRID_COLS * SLOT_WIDTH * 1.10),
+				(int)(GRID_ROWS * SLOT_HEIGHT * 1.10)
+		));
+		panelComponent.setBorder(new java.awt.Rectangle(
+				(int)(SLOT_HEIGHT * 0.35),
+				(int)(SLOT_WIDTH  * 0.35),
+				(int)(SLOT_HEIGHT * 0.35),
+				(int)(SLOT_WIDTH  * 0.35)
 		));
 		panelComponent.setOrientation(ComponentOrientation.HORIZONTAL);
 		this.itemManager = itemManager;
@@ -98,6 +102,19 @@ public class EquipmentViewerOverlay extends OverlayPanel {
 			final BufferedImage image = getImage(item);
 			if (image != null) {
 				panelComponent.getChildren().set(SLOT_TO_GRID.get(containerSlot), new ImageComponent(image));
+			}
+		}
+
+		// Dizana's Quiver ammo
+		final Item cape = itemContainer.getItem(1);
+		if (cape != null && DIZANAS_QUIVER_IDS.contains(cape.getId())) {
+			final int quiverAmmoId = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO);
+			final int quiverAmmoCount = client.getVarpValue(VarPlayerID.DIZANAS_QUIVER_TEMP_AMMO_AMOUNT);
+			if (quiverAmmoId > 0 && quiverAmmoCount > 0) {
+				final BufferedImage image = itemManager.getImage(quiverAmmoId, quiverAmmoCount, quiverAmmoCount > 1);
+				if (image != null) {
+					panelComponent.getChildren().set(2, new ImageComponent(image));
+				}
 			}
 		}
 
