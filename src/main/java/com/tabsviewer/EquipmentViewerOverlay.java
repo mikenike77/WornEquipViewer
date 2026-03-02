@@ -63,10 +63,10 @@ public class EquipmentViewerOverlay extends OverlayPanel {
 				(int)(GRID_ROWS * SLOT_HEIGHT * 1.10)
 		));
 		panelComponent.setBorder(new java.awt.Rectangle(
-				(int)(SLOT_HEIGHT * 0.35),
-				(int)(SLOT_WIDTH  * 0.35),
-				(int)(SLOT_HEIGHT * 0.35),
-				(int)(SLOT_WIDTH  * 0.35)
+				(int)(SLOT_HEIGHT * 0.2),
+				(int)(SLOT_WIDTH  * 0.2),
+				(int)(SLOT_HEIGHT * 0.2),
+				(int)(SLOT_WIDTH  * 0.2)
 		));
 		panelComponent.setOrientation(ComponentOrientation.HORIZONTAL);
 		this.itemManager = itemManager;
